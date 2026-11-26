@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>
+      Seismic Monitor
+    </title>
+    <style>
+      :root{
+      --bg:#050505;--panel:#101010;--border:#292929;
+      --text:#e5e5e5;--muted:#888;--trace:#ff1717;
+      --accent:#3b82f6;--warning:#ff2222;
+      }
+      body.light{
+      --bg:#f1f5f9;--panel:#fff;--border:#cbd5e1;
+      --text:#172033;--muted:#64748b;--trace:#dc2626;
+      --accent:#2563eb;--warning:#dc2626;
+      }
+      *{box-sizing:border-box}
+      body{margin:0;background:var(--bg);color:var(--text);font-family:Arial}
+      header{padding:18px;background:var(--panel);border-bottom:1px solid var(--border)}
+      .logo{color:var(--trace);font-size:22px;font-weight:bold;letter-spacing:2px}
+      .subtitle{color:var(--muted);font-size:10px;margin-top:6px}
+      .container{max-width:950px;margin:auto;padding:14px}
+      .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:15px;margin-bottom:14px}
+      .title{font-size:12px;letter-spacing:2px;color:var(--accent);margin-bottom:12px}
+      .status{font-size:13px;color:var(--muted)}
+      .status.active{color:var(--trace)}
+      .controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+      button{background:var(--panel);color:var(--accent);border:1px solid var(--border);padding:13px;border-radius:8px;font-weight:bold;font-size:12px}
+      button.primary{background:#172554;color:#60a5fa;border-color:#1d4ed8}
+      body.light button.primary{background:#dbeafe;color:#1d4ed8}
+      button:disabled{opacity:.5}
+      .metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+      .metric{background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:12px;min-width:0}
+      .label{font-size:10px;color:var(--muted);letter-spacing:1px}
+      .value{color:var(--accent);font-size:22px;font-weight:bold;margin-top:8px;overflow-wrap:anywhere}
+      .small{color:var(--muted);font-size:10px;margin-top:5px}
+      canvas{display:block;width:100%;height:240px;background:var(--bg);border-radius:8px;border:1px solid var(--border)}
+      .note{color:var(--muted);font-size:11px;line-height:1.5}
+      .modal{display:none;position:fixed;inset:0;z-index:20;background:#000c;align-items:center;justify-content:center;padding:20px}
+      .modalBox{width:100%;max-width:400px;background:var(--panel);border:1px solid var(--warning);border-radius:14px;padding:22px;text-align:center}
+      .modalTitle{color:var(--warning);font-weight:bold;font-size:20px;letter-spacing:1px}
+      .modalText{color:var(--text);font-size:13px;line-height:1.6;margin:15px 0}
+      .modalResult{color:var(--trace);font-size:25px;font-weight:bold;margin:15px}
+      footer{text-align:center;font-size:10px;color:var(--muted);padding:15px}
+      @media(min-width:700px){.metrics{grid-template-columns:repeat(4,1fr)}}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">
+      SEISMIC MONITOR
+    </div>
+    <div class="subtitle">
+      EARTHQUAKE MONITORING SYSTEM
+    </div>
+  </header>
+  <div class="container">
+    <div class="panel">
+      <div class="title">
+        SYSTEM STATUS
+      </div>
+      <div id="status" class="status">
+        ● STANDBY
+      </div>
+      <div class="controls">
+        <button id="start" class="primary">
+          START MONITORING
+        </button>
+        <button id="theme">
+          LIGHT THEME
+        </button>
+        <button id="traceToggle">
+          HIDE LIVE TRACE
+        </button>
+        <button id="soundToggle">
+          SOUND ON
+        </button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="title">
+        LIVE SEISMIC TRACE
+      </div>
+      <canvas id="graph">
+      </canvas>
+      <div class="small">
+        RED TRACE — LIVE MOTION
+      </div>
+    </div>
+    <div class="panel">
+      <div class="title">
+        LIVE MONITOR
+      </div>
+      <div class="metrics">
+        <div class="metric">
+          <div class="label">
+            CURRENT MOTION
+          </div>
+          <div class="value" id="motion">
+            0.00
+          </div>
+          <div class="small">
+            m/s²
+          </div>
+        </div>
+        <div class="metric">
+          <div class="label">
+            PEAK MOTION
+          </div>
+          <div class="value" id="peak">
+            0.00
+          </div>
+          <div class="small">
+            m/s²
+          </div>
+        </div>
+        <div class="metric">
+          <div class="label">
+            DURATION
+          </div>
+          <div class="value" id="duration">
+            0.0
+          </div>
+          <div class="small">
+            seconds
+          </div>
+        </div>
+        <div class="metric">
+          <div class="label">
+            EVENTS
+          </div>
+          <div class="value" id="count">
+            0
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="title">
+        ESTIMATED RESULTS
+      </div>
+      <div class="metrics">
+        <div class="metric">
+          <div class="label">
+            ESTIMATED MAGNITUDE
+          </div>
+          <div class="value" id="mag">
+            --
+          </div>
+        </div>
+        <div class="metric">
+          <div class="label">
+            ESTIMATED INTENSITY
+          </div>
+          <div class="value" id="mmi">
+            --
+          </div>
+        </div>
+        <div class="metric">
+          <div class="label">
+            PEAK ACCELERATION
+          </div>
+          <div class="value" id="resultPeak">
+            --
+          </div>
+          <div class="small">
+            m/s²
+          </div>
+        </div>
+        <div class="metric">
+          <div class="label">
+            AFTERSHOCKS
+          </div>
+          <div class="value" id="afterCount">
+            0
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="title">
+        AFTERSHOCK MONITOR
+      </div>
+      <div id="afterStatus" class="status">
+        Inactive
+      </div>
+      <div id="afterList" class="note">
+      </div>
+    </div>
+  </div>
+  <footer>
+    Phone motion measurements
+  </footer>
+  <div id="modal" class="modal">
+    <div class="modalBox">
+      <div id="modalTitle" class="modalTitle">
+        WARNING
+      </div>
+      <div id="modalText" class="modalText">
+        Motion detected.
+      </div>
+      <div id="modalResult" class="modalResult">
+        --
+      </div>
+      <button id="acknowledge" class="primary">
+        CLOSE
+      </button>
+    </div>
+  </div>
+  <script>
+    const canvas=document.getElementById("graph");
+    const ctx=canvas.getContext("2d");
+    const statusEl=document.getElementById("status");
+    const motionEl=document.getElementById("motion");
+    const peakEl=document.getElementById("peak");
+    const durationEl=document.getElementById("duration");
+    const countEl=document.getElementById("count");
+    const magEl=document.getElementById("mag");
+    const mmiEl=document.getElementById("mmi");
+    const resultPeakEl=document.getElementById("resultPeak");
+    const afterCountEl=document.getElementById("afterCount");
+    const afterStatus=document.getElementById("afterStatus");
+    const afterList=document.getElementById("afterList");
+    const modal=document.getElementById("modal");
+    const modalTitle=document.getElementById("modalTitle");
+    const modalText=document.getElementById("modalText");
+    const modalResult=document.getElementById("modalResult");
+    const startBtn=document.getElementById("start");
+    const THRESHOLD=0.80;
+    const QUIET_TIME=7500;
+    const AFTERSHOCK_WINDOW=60000;
+    const MAX_POINTS=250;
+    const DISPLAY_LIMIT=8;
+    let active=false;
+    let traceVisible=true;
+    let soundEnabled=true;
+    let trace=[];
+    let gx=0,gy=0,gz=0;
+    let mainEvent=false;
+    let eventStart=0;
+    let lastMotionTime=0;
+    let eventPeak=0;
+    let eventCount=0;
+    let aftershockWindow=false;
+    let aftershockDeadline=0;
+    let aftershockActive=false;
+    let aftershockLastMotion=0;
+    let aftershockPeak=0;
+    let aftershockCount=0;
+    let audioContext=null;
+    let alarmOsc1=null;
+    let alarmOsc2=null;
+    let alarmGain=null;
+    let alarmTimer=null;
+    function resize(){
+    const rect=canvas.getBoundingClientRect();
+    const ratio=window.devicePixelRatio||1;
+    canvas.width=rect.width*ratio;
+    canvas.height=rect.height*ratio;
+    ctx.setTransform(ratio,0,0,ratio,0,0);
+    draw();
+    }
+    function draw(){
+    const w=canvas.clientWidth;
+    const h=canvas.clientHeight;
+    if(!w||!h)return;
+    ctx.clearRect(0,0,w,h);
+    const s=getComputedStyle(document.body);
+    const grid=s.getPropertyValue("--border");
+    const traceColor=s.getPropertyValue("--trace");
+    const muted=s.getPropertyValue("--muted");
+    ctx.strokeStyle=grid;
+    ctx.lineWidth=1;
+    for(let x=0;x<w;x+=40){
+    ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
+    }
+    for(let y=0;y<h;y+=30){
+    ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
+    }
+    const mid=h/2;
+    // Center line
+    ctx.strokeStyle=muted;
+    ctx.beginPath();ctx.moveTo(0,mid);ctx.lineTo(w,mid);ctx.stroke();
+    if(!traceVisible)return;
+    const scale=(h/2-12)/DISPLAY_LIMIT;
+    ctx.beginPath();
+    ctx.strokeStyle=traceColor;
+    ctx.lineWidth=2;
+    ctx.lineJoin="miter";
+    ctx.lineCap="butt";
+    ctx.shadowColor=traceColor;
+    ctx.shadowBlur=3;
+    for(let i=0;i<trace.length;i++){
+    const x=i*w/MAX_POINTS;
+    const val=Math.max(-DISPLAY_LIMIT,
+    Math.min(DISPLAY_LIMIT,trace[i]));
+    const y=mid-val*scale;
+    if(i===0)ctx.moveTo(x,y);
+    else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    ctx.shadowBlur=0;
+    }
+    function addTrace(value){
+    trace.push(value);
+    if(trace.length>MAX_POINTS)trace.shift();
+    draw();
+    }
+    function initializeAudio(){
+    if(!audioContext){
+    audioContext=new(window.AudioContext||window.webkitAudioContext)();
+    }
+    if(audioContext.state==="suspended"){
+    audioContext.resume();
+    }
+    }
+    // Original pulsing emergency-style alarm
+    function startAlarm(){
+    if(!soundEnabled||!audioContext||alarmOsc1)return;
+    alarmOsc1=audioContext.createOscillator();
+    alarmOsc2=audioContext.createOscillator();
+    alarmGain=audioContext.createGain();
+    alarmOsc1.type="square";
+    alarmOsc2.type="triangle";
+    alarmOsc1.frequency.value=720;
+    alarmOsc2.frequency.value=480;
+    alarmGain.gain.value=0.0001;
+    alarmOsc1.connect(alarmGain);
+    alarmOsc2.connect(alarmGain);
+    alarmGain.connect(audioContext.destination);
+    alarmOsc1.start();
+    alarmOsc2.start();
+    alarmGain.gain.setTargetAtTime(
+    0.11,audioContext.currentTime,0.03
+    );
+    let phase=0;
+    alarmTimer=setInterval(()=>{
+    if(!alarmOsc1)return;
+    phase++;
+    const t=audioContext.currentTime;
+    // Alternating pitch sweep
+    const high=phase%2===0;
+    alarmOsc1.frequency.setTargetAtTime(
+    high?1050:650,t,0.08
+    );
+    alarmOsc2.frequency.setTargetAtTime(
+    high?780:420,t,0.08
+    );
+    // Rapid pulse
+    alarmGain.gain.setTargetAtTime(
+    phase%3===0?0.025:0.11,t,0.025
+    );
+    },320);
+    }
+    function stopAlarm(){
+    if(alarmTimer){
+    clearInterval(alarmTimer);
+    alarmTimer=null;
+    }
+    if(alarmOsc1){
+    try{
+    alarmGain.gain.setTargetAtTime(
+    0.0001,audioContext.currentTime,0.05
+    );
+    alarmOsc1.stop(audioContext.currentTime+0.15);
+    alarmOsc2.stop(audioContext.currentTime+0.15);
+    alarmOsc1.disconnect();
+    alarmOsc2.disconnect();
+    alarmGain.disconnect();
+    }catch(e){}
+    alarmOsc1=null;
+    alarmOsc2=null;
+    alarmGain=null;
+    }
+    }
+    function popup(title,text,result){
+    modalTitle.textContent=title;
+    modalText.textContent=text;
+    modalResult.textContent=result;
+    modal.style.display="flex";
+    }
+    document.getElementById("acknowledge").onclick=()=>{
+    modal.style.display="none";
+    };
+    function calculateResult(){
+    const p=eventPeak;
+    // Numerical display estimate only.
+    const m=Math.min(5,Math.max(1,1+Math.log10(1+p*2)));
+    let intensity;
+    if(p<1)intensity="I–II";
+    else if(p<2)intensity="III";
+    else if(p<3.5)intensity="IV";
+    else if(p<5)intensity="V";
+    else if(p<7)intensity="VI";
+    else intensity="VII+";
+    magEl.textContent=m.toFixed(1);
+    mmiEl.textContent=intensity;
+    resultPeakEl.textContent=p.toFixed(2);
+    popup("EVENT COMPLETE","Estimated shaking result",
+    "Magnitude "+m.toFixed(1));
+    stopAlarm();
+    }
+    function finishMain(){
+    if(!mainEvent)return;
+    mainEvent=false;
+    calculateResult();
+    aftershockWindow=true;
+    aftershockDeadline=Date.now()+AFTERSHOCK_WINDOW;
+    aftershockActive=false;
+    aftershockPeak=0;
+    afterStatus.textContent="Aftershock monitoring — 60 seconds";
+    afterList.textContent="";
+    afterCountEl.textContent="0";
+    eventPeak=0;
+    }
+    function startAftershock(){
+    aftershockActive=true;
+    aftershockLastMotion=Date.now();
+    aftershockPeak=0;
+    aftershockCount++;
+    afterCountEl.textContent=aftershockCount;
+    afterList.innerHTML+="<div>Aftershock "+aftershockCount+" detected</div>";
+    popup("AFTERSHOCK WARNING","Additional shaking detected","AFTERSHOCK");
+    startAlarm();
+    }
+    function finishAftershock(){
+    aftershockActive=false;
+    afterList.innerHTML+="<div>Aftershock "+aftershockCount+
+    " • Peak "+aftershockPeak.toFixed(2)+" m/s²</div>";
+    aftershockPeak=0;
+    stopAlarm();
+    }
+    function closeAftershockWindow(){
+    aftershockWindow=false;
+    afterStatus.textContent="Monitoring complete";
+    afterList.innerHTML+="<div>Monitoring completed</div>";
+    }
+    function processMotion(x,y,z){
+    if(!active)return;
+    const alpha=0.94;
+    gx=alpha*gx+(1-alpha)*x;
+    gy=alpha*gy+(1-alpha)*y;
+    gz=alpha*gz+(1-alpha)*z;
+    const dx=x-gx;
+    const dy=y-gy;
+    const dz=z-gz;
+    const magnitude=Math.sqrt(dx*dx+dy*dy+dz*dz);
+    // Signed dominant-axis motion for up/down trace
+    let signed;
+    if(Math.abs(dx)>=Math.abs(dy)&&Math.abs(dx)>=Math.abs(dz)){
+    signed=dx;
+    }else if(Math.abs(dy)>=Math.abs(dz)){
+    signed=dy;
+    }else{
+    signed=dz;
+    }
+    motionEl.textContent=magnitude.toFixed(2);
+    addTrace(signed);
+    if(magnitude>THRESHOLD){
+    if(!mainEvent&&!aftershockWindow){
+    mainEvent=true;
+    eventStart=Date.now();
+    lastMotionTime=Date.now();
+    eventPeak=magnitude;
+    eventCount++;
+    countEl.textContent=eventCount;
+    popup("EARTHQUAKE WARNING","Shaking detected","WARNING");
+    startAlarm();
+    }
+    if(mainEvent){
+    lastMotionTime=Date.now();
+    eventPeak=Math.max(eventPeak,magnitude);
+    peakEl.textContent=eventPeak.toFixed(2);
+    durationEl.textContent=
+    ((Date.now()-eventStart)/1000).toFixed(1);
+    }
+    if(aftershockWindow&&Date.now()<aftershockDeadline){
+    if(!aftershockActive)startAftershock();
+    aftershockLastMotion=Date.now();
+    aftershockPeak=Math.max(aftershockPeak,magnitude);
+    }
+    }
+    }
+    function handleMotion(e){
+    let x=0,y=0,z=0;
+    if(e.acceleration&&e.acceleration.x!==null){
+    x=e.acceleration.x||0;
+    y=e.acceleration.y||0;
+    z=e.acceleration.z||0;
+    }else if(e.accelerationIncludingGravity){
+    x=e.accelerationIncludingGravity.x||0;
+    y=e.accelerationIncludingGravity.y||0;
+    z=e.accelerationIncludingGravity.z||0;
+    }else return;
+    processMotion(x,y,z);
+    }
+    function activate(){
+    active=true;
+    initializeAudio();
+    window.addEventListener("devicemotion",handleMotion);
+    statusEl.textContent="● MONITORING ACTIVE";
+    statusEl.className="status active";
+    startBtn.textContent="MONITORING";
+    startBtn.disabled=true;
+    }
+    startBtn.onclick=async()=>{
+    if(!window.DeviceMotionEvent){
+    statusEl.textContent="Sensor unavailable";
+    return;
+    }
+    try{
+    initializeAudio();
+    if(typeof DeviceMotionEvent.requestPermission==="function"){
+    const p=await DeviceMotionEvent.requestPermission();
+    if(p!=="granted"){
+    statusEl.textContent="Permission denied";
+    return;
+    }
+    }
+    activate();
+    }catch(e){
+    statusEl.textContent=e.message;
+    }
+    };
+    document.getElementById("theme").onclick=()=>{
+    document.body.classList.toggle("light");
+    document.getElementById("theme").textContent=
+    document.body.classList.contains("light")
+    ?"DARK THEME":"LIGHT THEME";
+    draw();
+    };
+    document.getElementById("traceToggle").onclick=()=>{
+    traceVisible=!traceVisible;
+    document.getElementById("traceToggle").textContent=
+    traceVisible?"HIDE LIVE TRACE":"SHOW LIVE TRACE";
+    draw();
+    };
+    document.getElementById("soundToggle").onclick=()=>{
+    soundEnabled=!soundEnabled;
+    document.getElementById("soundToggle").textContent=
+    soundEnabled?"SOUND ON":"SOUND OFF";
+    if(!soundEnabled)stopAlarm();
+    else if(mainEvent||aftershockActive)startAlarm();
+    };
+    setInterval(()=>{
+    const now=Date.now();
+    if(mainEvent&&now-lastMotionTime>=QUIET_TIME){
+    finishMain();
+    }
+    if(aftershockActive&&now-aftershockLastMotion>=QUIET_TIME){
+    finishAftershock();
+    }
+    if(aftershockWindow&&now>=aftershockDeadline){
+    if(aftershockActive)finishAftershock();
+    closeAftershockWindow();
+    }
+    },250);
+    window.addEventListener("resize",resize);
+    resize();
+</script>
+</body>
+</html>
